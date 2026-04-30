@@ -14,7 +14,7 @@ Stm32:
 - Truyền và nhận dữ liệu: UART non Blocking, sử dụng mutex để bảo vệ UART và sử dụng semaphore làm tín hiệu kết thúc quá trình truyền
 ESP32
 - RTOS
-- Nút nhấn báo động sử dụng ngắt ngoài báo semaphore
+- Nút nhấn báo động sử dụng ngắt ngoài gửi semaphore
 - Lưu giá trị khởi tạo ban đầu của Loadcell vào Flash, tính toán tham số trung gian để ra được cân nặng thực tế
 - Dùng mutex bảo vệ tài nguyên dùng chung (data, I2C, flash)
 - Queue lưu dữ liệu từ uart và HX711
