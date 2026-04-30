@@ -6,8 +6,9 @@ Linh kiện sử dụng:
 - ESP32: ESP-IDF (framework), Visual Studio Code (IDE)
 - STM32: STM32CubeIDE (IDE), STM32 HAL (library)
 Mô tả hệ thống:
-- Stm32: - Thu thập và tính toán các giá trị từ BME280 và MAX30102 (I2C), sử dụng mutex để bảo vệ I2C tránh xung đột
-         - Nút nhấn điều khiển nâng hạ (1 mức), sử dụng PWM, chỉ mới thử nghiệm trên led (có thể triển khai sau trên mạch cầu H), sử dụng ngắt ngoài gửi semaphore để bật và               tắt led
-         - Các dữ liệu thu thập được và phản hồi trạng thái từ phần điều khiển sẽ được lưu vào queue
-         - Truyền và nhận dữ liệu: UART non Blocking, sử dụng mutex để bảo vệ UART và sử dụng semaphore làm tín hiệu kết thúc quá trình truyền
-- ESP32  - 
+Stm32:
+- Thu thập và tính toán các giá trị từ BME280 và MAX30102 (I2C), sử dụng mutex để bảo vệ I2C tránh xung đột
+- Nút nhấn điều khiển nâng hạ (1 mức), sử dụng PWM, chỉ mới thử nghiệm trên led (có thể triển khai sau trên mạch cầu H), sử dụng ngắt ngoài gửi semaphore để bật và               tắt led
+- Các dữ liệu thu thập được và phản hồi trạng thái từ phần điều khiển sẽ được lưu vào queue
+- Truyền và nhận dữ liệu: UART non Blocking, sử dụng mutex để bảo vệ UART và sử dụng semaphore làm tín hiệu kết thúc quá trình truyền
+ESP32  
