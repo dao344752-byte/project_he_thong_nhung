@@ -32,6 +32,9 @@
 #define UART_RX_PIN     19
 #define UART_BUF_SIZE   256
 
+#define BUTTON_PIN      0
+#define BUZZER_PIN      1
+
 // ======================================================
 // STRUCT
 // ======================================================
@@ -60,7 +63,7 @@ sensor_data_t g_data = {0};
 SemaphoreHandle_t data_mutex;
 SemaphoreHandle_t oled_mutex;
 SemaphoreHandle_t nvs_mutex;
-
+SemaphoreHandle_t buzzer_semaphore;
 QueueHandle_t oled_queue;
 
 // ======================================================
@@ -77,6 +80,7 @@ void i2c_init(void)
 
     i2c_param_config(I2C_NUM_0, &conf);
     i2c_driver_install(I2C_NUM_0, conf.mode, 0, 0, 0);
+
 }
 
 // ======================================================
@@ -248,9 +252,9 @@ void task_hx711(void *arg)
         if (hx711_is_ready(&scale))
         {
             float raw = hx711_read_average(&scale, 20);
-            
+            printf("RAW = %.2f\n", raw);
             float weight =
-                (raw - offset) / (-412682.0f);
+                (raw - offset) / (-380000.0f);
 
             if (xSemaphoreTake(data_mutex, portMAX_DELAY))
             {
@@ -263,7 +267,7 @@ void task_hx711(void *arg)
             xQueueSend(oled_queue, &g_data, 0);
         }
 
-        vTaskDelay(pdMS_TO_TICKS(200));
+        vTaskDelay(pdMS_TO_TICKS(2000));
     }
 }
 
@@ -306,6 +310,73 @@ void task_oled(void *arg)
     }
 }
 
+void task_buzzer(void *arg)
+{
+    int buzzer_on = 0;
+    TickType_t start_time = 0;
+
+    // debounce
+    TickType_t last_press_time = 0;
+    const TickType_t debounce_delay = pdMS_TO_TICKS(200);
+
+    for (;;)
+    {
+        // chờ event hoặc timeout để check auto-off
+        if (xSemaphoreTake(buzzer_semaphore, pdMS_TO_TICKS(50)) == pdTRUE)
+        {
+            TickType_t now = xTaskGetTickCount();
+
+            // debounce
+            if ((now - last_press_time) > debounce_delay)
+            {
+                last_press_time = now;
+
+                buzzer_on = !buzzer_on;
+
+                if (buzzer_on)
+                {
+                    gpio_set_level(BUZZER_PIN, 1);
+                    start_time = now;
+
+                    // KHÔNG nên printf trực tiếp
+                    // sendUart("BUZZER ON\n");
+                }
+                else
+                {
+                    gpio_set_level(BUZZER_PIN, 0);
+                    // sendUart("BUZZER OFF\n");
+                }
+            }
+        }
+
+        // auto OFF sau 10s
+        if (buzzer_on)
+        {
+            if ((xTaskGetTickCount() - start_time) > pdMS_TO_TICKS(10000))
+            {
+                buzzer_on = 0;
+                gpio_set_level(BUZZER_PIN, 0);
+
+                // sendUart("BUZZER AUTO OFF\n");
+            }
+        }
+
+        // yield nhẹ cho scheduler
+        vTaskDelay(pdMS_TO_TICKS(10));
+    }
+}
+static void IRAM_ATTR button_isr_handler(void *arg)
+{
+    BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
+    xSemaphoreGiveFromISR(buzzer_semaphore, &xHigherPriorityTaskWoken);
+
+    if (xHigherPriorityTaskWoken)
+    {
+        portYIELD_FROM_ISR();
+    }
+}
+
 // ======================================================
 // MAIN
 // ======================================================
@@ -320,6 +391,7 @@ void app_main(void)
     data_mutex = xSemaphoreCreateMutex();
     oled_mutex = xSemaphoreCreateMutex();
     nvs_mutex  = xSemaphoreCreateMutex();
+    buzzer_semaphore = xSemaphoreCreateBinary();
 
     // queue
     oled_queue = xQueueCreate(5, sizeof(sensor_data_t));
@@ -329,17 +401,33 @@ void app_main(void)
 
     // HX711
     hx711_init(&scale, HX711_DT, HX711_SCK);
-
     vTaskDelay(pdMS_TO_TICKS(300));
+    
     /*int32_t raw = hx711_read_average(&scale, 20);
     save_offset(raw);
     scale.offset = raw;
     printf("Saved offset: %ld\n", raw);*/
 
-    // TASKS
-    xTaskCreate(task_uart,  "uart",  4096, NULL, 5, NULL);
-    xTaskCreate(task_hx711, "hx711", 4096, NULL, 5, NULL);
-    xTaskCreate(task_oled,  "oled",  4096, NULL, 5, NULL);
+    gpio_set_direction(BUZZER_PIN, GPIO_MODE_OUTPUT);
+    gpio_set_level(BUZZER_PIN, 0);
 
+    // BUTTON (GPIO0)
+    gpio_config_t io_conf = {
+        .intr_type = GPIO_INTR_NEGEDGE,
+        .mode = GPIO_MODE_INPUT,
+        .pin_bit_mask = (1ULL << BUTTON_PIN),
+        .pull_up_en = 1,
+    };
+    gpio_config(&io_conf);
+
+    gpio_install_isr_service(0);
+    gpio_isr_handler_add(BUTTON_PIN, button_isr_handler, NULL);
+
+    // TASKS
+    xTaskCreate(task_uart,  "uart",  4096, NULL, 3, NULL);
+    xTaskCreate(task_hx711, "hx711", 4096, NULL, 3, NULL);
+    xTaskCreate(task_oled,  "oled",  4096, NULL, 2, NULL);
+    xTaskCreate(task_buzzer, "buzzer", 4096, NULL, 2, NULL);
     printf("SYSTEM STARTED\n");
 }
+
