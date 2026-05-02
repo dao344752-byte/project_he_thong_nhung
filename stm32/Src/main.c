@@ -343,7 +343,7 @@ void sendUart(char *str)
 void TimeoutCallback(void *argument)
 {
     int i = (int)argument;
-    if (HAL_GPIO_ReadPin(channels[i].port_in, channels[i].pin_in)== RESET)
+    if (HAL_GPIO_ReadPin(channels[i].port_in, channels[i].pin_in)== SET)
     {
     	__HAL_TIM_SET_COMPARE(channels[i].htim, channels[i].tim_channel, PWM_STOP);
         HAL_TIM_PWM_Stop(channels[i].htim, channels[i].tim_channel);
