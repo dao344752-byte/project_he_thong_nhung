@@ -167,7 +167,7 @@ void process_uart(char *line)
         }
         else if (strncmp(line, "T=", 2) == 0)
         {
-            sscanf(line, "T=%fC;H=%f%%",
+            sscanf(line, "T=%f H=%f",
                    &g_data.temp,
                    &g_data.hum);
         }
@@ -422,7 +422,7 @@ void app_main(void)
 
     gpio_install_isr_service(0);
     gpio_isr_handler_add(BUTTON_PIN, button_isr_handler, NULL);
-
+    uart_write_bytes(UART_PORT, "SYNC\n", strlen("SYNC\n"));
     // TASKS
     xTaskCreate(task_uart,  "uart",  4096, NULL, 3, NULL);
     xTaskCreate(task_hx711, "hx711", 4096, NULL, 3, NULL);

@@ -97,7 +97,7 @@ osThreadId_t myTask06Handle;
 const osThreadAttr_t myTask06_attributes = {
   .name = "myTask06",
   .stack_size = 512 * 4,
-  .priority = (osPriority_t) osPriorityAboveNormal,
+  .priority = (osPriority_t) osPriorityNormal,
 };
 /* Definitions for TX_queue */
 osMessageQueueId_t TX_queueHandle;
@@ -296,9 +296,12 @@ void HAL_UART_RxCpltCallback(UART_HandleTypeDef *huart)
         }
         else
         {
-            if (rxIndex < MAX_LINE - 1)
+            if (rxByte >= 32 && rxByte <= 126)  // 🔥 lọc ký tự
             {
-                rxLine[rxIndex++] = rxByte;
+                if (rxIndex < MAX_LINE - 1)
+                {
+                    rxLine[rxIndex++] = rxByte;
+                }
             }
         }
         HAL_UART_Receive_IT(&huart1, &rxByte, 1);
@@ -340,13 +343,13 @@ void sendUart(char *str)
 void TimeoutCallback(void *argument)
 {
     int i = (int)argument;
-
-    __HAL_TIM_SET_COMPARE(channels[i].htim, channels[i].tim_channel, PWM_STOP);
-    HAL_TIM_PWM_Stop(channels[i].htim, channels[i].tim_channel);
-
-    channels[i].waiting = 0;
-
-    sendUart("CHECK=0\n");
+    if (HAL_GPIO_ReadPin(channels[i].port_in, channels[i].pin_in)== RESET)
+    {
+    	__HAL_TIM_SET_COMPARE(channels[i].htim, channels[i].tim_channel, PWM_STOP);
+        HAL_TIM_PWM_Stop(channels[i].htim, channels[i].tim_channel);
+        channels[i].waiting = 0;
+        sendUart("CHECK=0\n");
+    }
 }
 
 /*for (int i = 0; i < NUM_CHANNELS; i++)
@@ -496,13 +499,13 @@ int main(void)
 
   /* Create the queue(s) */
   /* creation of TX_queue */
-  TX_queueHandle = osMessageQueueNew (16, sizeof(uint16_t), &TX_queue_attributes);
+  TX_queueHandle = osMessageQueueNew (128, sizeof(uint16_t), &TX_queue_attributes);
 
   /* creation of RX_queue */
   RX_queueHandle = osMessageQueueNew (16, sizeof(CommandMsg_t), &RX_queue_attributes);
 
   /* creation of myQueue03 */
-  myQueue03Handle = osMessageQueueNew (16, sizeof(MaxSample_t), &myQueue03_attributes);
+  myQueue03Handle = osMessageQueueNew (128, sizeof(MaxSample_t), &myQueue03_attributes);
 
   /* USER CODE BEGIN RTOS_QUEUES */
   /* add queues, ... */
@@ -917,15 +920,15 @@ void RX_UART(void *argument)
 {
   /* USER CODE BEGIN RX_UART */
   /* Infinite loop */
-    CommandMsg_t msg;
+    CommandMsg_t rxmsg;
 
     for(;;)
     {
-        if (osMessageQueueGet(RX_queueHandle, &msg, NULL, osWaitForever) == osOK)
+        if (osMessageQueueGet(RX_queueHandle, &rxmsg, NULL, osWaitForever) == osOK)
         {
             uint8_t found = 0;
 
-            if (strcmp(msg.cmd, "SYNC") == 0)
+            if (strcmp(rxmsg.cmd, "SYNC") == 0)
             {
                 PartStatus headStatus, tailStatus;
                 if (HAL_GPIO_ReadPin(GPIOA, GPIO_PIN_4) == GPIO_PIN_RESET)
@@ -944,7 +947,7 @@ void RX_UART(void *argument)
 
             /*for (int i = 0; i < NUM_CHANNELS; i++)
             {
-                if (strcmp(msg.cmd, channels[i].cmd) == 0)
+                if (strcmp(rxmsg.cmd, channels[i].cmd) == 0)
                 {
                     if (channels[i].waiting)
                     {
@@ -994,8 +997,8 @@ void interrup_dc(void *argument)
 			__HAL_TIM_SET_COMPARE(channels[i].htim, channels[i].tim_channel, PWM_STOP);
 	        HAL_TIM_PWM_Stop(channels[i].htim, channels[i].tim_channel);
 	        channels[i].waiting = 0;
+	        break;
 		}
-	    break;
 	}
   }
   /* USER CODE END interrup_dc */
@@ -1014,6 +1017,7 @@ void sensor(void *argument)
 
   /* Infinite loop */
     /* ===== INIT SENSOR ===== */
+    vTaskDelay(pdMS_TO_TICKS(1000));
     int_max30102();
     sendUart("MAX30102 OK\r\n");
 
@@ -1048,7 +1052,7 @@ void sensor(void *argument)
             max30102_interrupt_handler(&max30102);
             osMutexRelease(myMutex02Handle);
         }
-        while(osMessageQueueGet(myQueue03Handle, &sample, NULL, 0) == osOK)
+        if(osMessageQueueGet(myQueue03Handle, &sample, NULL, 0) == osOK)
         {
             /* moving average filter */
             ir_sum  -= ir_filter_buf[filter_index];
@@ -1093,6 +1097,7 @@ void sensor(void *argument)
                 sample_count = 0;
             }
         }
+    vTaskDelay(10);
     }
   /* USER CODE END sensor */
 }
@@ -1103,13 +1108,13 @@ void bme_task(void *argument)
         .dev_addr = 0x76 << 1
     };
 
-    osMutexAcquire(myMutex02Handle, osWaitForever);
+    osMutexAcquire(myMutex03Handle, osWaitForever);
     if (!BME280_Init(&bme)) {
         sendUart("BME INIT FAIL\n");
     } else {
         sendUart("BME INIT OK\n");
     }
-    osMutexRelease(myMutex02Handle);
+    osMutexRelease(myMutex03Handle);
 
     for (;;)
     {
@@ -1117,7 +1122,7 @@ void bme_task(void *argument)
 
         float temp, hum;
 
-        osMutexAcquire(myMutex02Handle, osWaitForever);
+        osMutexAcquire(myMutex03Handle, osWaitForever);
 
         if (BME280_ReadTemperature(&bme, &temp) &&
             BME280_ReadHumidity(&bme, &hum))
@@ -1127,7 +1132,7 @@ void bme_task(void *argument)
             sendUart(msg);
         }
 
-        osMutexRelease(myMutex02Handle);
+        osMutexRelease(myMutex03Handle);
     }
 }
 /* Callback02 function */
