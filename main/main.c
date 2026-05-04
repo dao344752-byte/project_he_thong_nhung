@@ -161,15 +161,11 @@ void process_uart(char *line)
     {
         if (strncmp(line, "BPM=", 4) == 0)
         {
-            sscanf(line, "BPM=%f, SpO2=%f",
-                   &g_data.bpm,
-                   &g_data.spo2);
+            sscanf(line, "BPM=%f, SpO2=%f", &g_data.bpm, &g_data.spo2);
         }
         else if (strncmp(line, "T=", 2) == 0)
         {
-            sscanf(line, "T=%f H=%f",
-                   &g_data.temp,
-                   &g_data.hum);
+            sscanf(line, "T=%f H=%f", &g_data.temp, &g_data.hum);
         }
         else if (strncmp(line, "STATUS=", 7) == 0)
         {
@@ -297,9 +293,7 @@ void task_oled(void *arg)
                 sprintf(buf, "SPO2: %.0f", data.spo2);
                 ssd1306_draw_string(0, 32, buf);
 
-                sprintf(buf, "T: %.1f H: %.0f",
-                        data.temp,
-                        data.hum);
+                sprintf(buf, "T: %.1f H: %.0f", data.temp, data.hum);
                 ssd1306_draw_string(0, 48, buf);
 
                 ssd1306_update(&oled);
@@ -321,7 +315,6 @@ void task_buzzer(void *arg)
 
     for (;;)
     {
-        // chờ event hoặc timeout để check auto-off
         if (xSemaphoreTake(buzzer_semaphore, pdMS_TO_TICKS(50)) == pdTRUE)
         {
             TickType_t now = xTaskGetTickCount();
@@ -338,18 +331,14 @@ void task_buzzer(void *arg)
                     gpio_set_level(BUZZER_PIN, 1);
                     start_time = now;
 
-                    // KHÔNG nên printf trực tiếp
-                    // sendUart("BUZZER ON\n");
                 }
                 else
                 {
                     gpio_set_level(BUZZER_PIN, 0);
-                    // sendUart("BUZZER OFF\n");
                 }
             }
         }
 
-        // auto OFF sau 10s
         if (buzzer_on)
         {
             if ((xTaskGetTickCount() - start_time) > pdMS_TO_TICKS(10000))
@@ -357,11 +346,9 @@ void task_buzzer(void *arg)
                 buzzer_on = 0;
                 gpio_set_level(BUZZER_PIN, 0);
 
-                // sendUart("BUZZER AUTO OFF\n");
             }
         }
 
-        // yield nhẹ cho scheduler
         vTaskDelay(pdMS_TO_TICKS(10));
     }
 }
