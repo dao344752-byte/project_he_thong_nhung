@@ -1,5 +1,6 @@
 HỆ THỐNG HỖ TRỢ CHĂM SÓC SỨC KHỎE 
 
+link video google driver: https://drive.google.com/file/d/1cmdFSFdqNlpv2mbmlAG8zNKK-DFlpTQF/view?usp=drive_link
 Linh kiện sử dụng:
 - Module: Loadcell + HX711, BME280, MAX30102, SSD1306
 - Vi điều khiển: STM32F103C8T6, ESP32C3 mini
